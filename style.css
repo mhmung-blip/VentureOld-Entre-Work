@@ -1,131 +1,281 @@
 :root {
-    --bg-primary: #1a202c;
-    --bg-secondary: #2d3748;
-    --text-color: #e2e8f0;
-    --accent-color: #3182ce;
-    --border-color: #4a5568;
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-panel: #111827;
+    --text-color: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-color: #3b82f6;
+    --accent-hover: #2563eb;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --border-color: #334155;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 body.light-theme {
-    --bg-primary: #f7fafc;
+    --bg-primary: #f1f5f9;
     --bg-secondary: #ffffff;
-    --text-color: #2d3748;
-    --accent-color: #3182ce;
-    --border-color: #cbd5e0;
+    --bg-panel: #f8fafc;
+    --text-color: #0f172a;
+    --text-muted: #64748b;
+    --accent-color: #2563eb;
+    --accent-hover: #1d4ed8;
+    --success-color: #059669;
+    --danger-color: #dc2626;
+    --border-color: #cbd5e1;
 }
 
 body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-color);
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
 }
 
+/* TOP BAR GRAPHICS */
 .top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     background-color: var(--bg-secondary);
-    padding: 10px 20px;
+    padding: 12px 24px;
     border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: 50;
 }
 
-.top-bar h2 { margin: 0; font-size: 1.4rem; }
+.top-bar h2 { 
+    margin: 0; 
+    font-size: 1.5rem; 
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    background: linear-gradient(to right, var(--accent-color), #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
 
+/* MAIN CONTAINER GRID */
 .main-container {
     display: flex;
-    min-height: calc(100vh - 60px);
+    min-height: calc(100vh - 57px);
 }
 
+/* SIDEBAR AND NAVIGATION */
 .sidebar {
-    width: 240px;
+    width: 260px;
     background-color: var(--bg-secondary);
-    padding: 20px 10px;
+    padding: 24px 16px;
     border-right: 1px solid var(--border-color);
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
+.sidebar hr {
+    border: 0;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 16px 0;
+}
+
+/* APP SCREENS & AREA LAYOUT */
 .content-area {
     flex: 1;
-    padding: 25px;
+    padding: 32px;
     box-sizing: border-box;
+    overflow-y: auto;
 }
 
 .screen {
     display: none;
+    animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .screen.active {
     display: block;
 }
 
-.panel {
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 20px;
-    margin-bottom: 20px;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.panel h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+/* MODERN BOOTSTRAPED PANELS */
+.panel {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-md);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
 
+.panel:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.panel h3 { 
+    margin-top: 0; 
+    margin-bottom: 20px; 
+    font-size: 1.2rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color); 
+    padding-bottom: 12px; 
+    color: var(--text-color);
+}
+
+/* BUTTON SYSTEMS */
 .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background-color: var(--accent-color);
     color: white;
     border: none;
-    padding: 10px 15px;
-    margin: 5px 0;
-    border-radius: 4px;
+    padding: 10px 20px;
+    margin: 4px 0;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
     font-size: 0.9rem;
     min-width: 140px;
-    transition: opacity 0.1s;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
 }
 
-.btn:hover { opacity: 0.9; }
-.btn:active { transform: scale(0.98); }
+.btn:hover { 
+    background-color: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
 
+.btn:active { 
+    transform: scale(0.97) translateY(0); 
+}
+
+.btn-secondary {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+.btn-secondary:hover {
+    background-color: var(--text-muted);
+    color: var(--bg-primary);
+}
+
+/* ACTIVE DASHBOARD ITEMS */
 .upgrade-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(0,0,0,0.1);
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 10px;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 12px;
     border: 1px solid var(--border-color);
+    transition: background 0.2s ease;
+}
+body.light-theme .upgrade-item {
+    background: rgba(0, 0, 0, 0.02);
 }
 
+.upgrade-item:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* LOGS & LIVE TICKERS */
 .live-log-box {
-    height: 120px;
+    height: 160px;
     overflow-y: auto;
-    background: rgba(0,0,0,0.2);
-    border-radius: 4px;
-    padding: 10px;
-    font-family: monospace;
+    background: #020617;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.85rem;
-    line-height: 1.4;
+    line-height: 1.5;
+    color: #38bdf8;
+    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
 }
 
+.live-log-box div {
+    margin-bottom: 4px;
+    border-left: 2px solid transparent;
+    padding-left: 6px;
+}
+
+/* ARABLE PLOTS & INTERACTION CARDS */
 .plot-card {
     background: var(--bg-primary);
-    border: 1px dashed var(--border-color);
-    padding: 15px;
-    border-radius: 6px;
+    border: 2px dashed var(--border-color);
+    padding: 20px;
+    border-radius: 12px;
     text-align: center;
+    transition: all 0.2s ease;
 }
 
-.plot-card.growing { border-style: solid; border-color: #3182ce; }
-.plot-card.ready { border-style: solid; border-color: #4caf50; background: rgba(76, 175, 80, 0.05); }
+.plot-card.growing { 
+    border-style: solid; 
+    border-color: var(--accent-color); 
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
 
-input[type="text"], input[type="number"] {
+.plot-card.ready { 
+    border-style: solid; 
+    border-color: var(--success-color); 
+    background: rgba(16, 185, 129, 0.04); 
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+/* INPUT COMPONENT UPGRADES */
+input[type="text"], input[type="number"], select, textarea {
     width: 100%;
-    padding: 8px;
+    padding: 10px 14px;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     color: var(--text-color);
-    border-radius: 4px;
+    border-radius: 8px;
     box-sizing: border-box;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* CUSTOM STOREFRONT TYPOGRAPHY BUILDERS */
+.text-highlight {
+    font-weight: 700;
+    color: var(--accent-color);
+}
+
+.text-muted {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* CANVAS DESIGN TOOLS */
+.canvas-container {
+    background: #ffffff;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* STAT COUNTER BADGES */
+.badge-count {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-color);
 }
