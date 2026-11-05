@@ -1,9 +1,18 @@
+// Game State Engine Initialization
 let state = {
+    save_version: 2, 
     cash: 1000.00,
     dropshipping: { assets: [] },
-    local: { style: 'food', stock: 10, footTraffic: 12 },
+    local: { 
+        style: 'food', 
+        stock: 10, 
+        footTraffic: 12,
+        marketingMultiplier: 1.0,
+        loyaltyRating: 50, 
+        totalSalesCount: 0
+    },
     farm: { wheatSeeds: 5, tomatoSeeds: 3, rawWheat: 0, rawTomato: 0, preparedBread: 0, preparedPasta: 0 },
-    upgrades: { copywriting: 0, pixel: 0, lights: 0, hydroponics: 0 },
+    upgrades: { copywriting: 0, pixel: 0, lights: 0, hydroponics: 0, storePromoters: 0 },
     stocks: {
         '67coin': { held: 0, priceHistory: [], currentPrice: 10, baseVolatility: 0.15 },
         'Bitcoin': { held: 0, priceHistory: [], currentPrice: 100, baseVolatility: 0.08 },
@@ -18,24 +27,34 @@ let farmPlots = Array(6).fill(null).map(() => ({ condition: 'empty', type: '', p
 if (localStorage.getItem('venturecraft_save')) {
     try {
         const loadedState = JSON.parse(localStorage.getItem('venturecraft_save'));
-        if (loadedState && typeof loadedState.cash === 'number') {
+        if (loadedState && loadedState.save_version === 2 && typeof loadedState.cash === 'number') {
             state = { ...state, ...loadedState };
+        } else {
+            console.warn("Outdated or invalid save data detected. Automating master engine refresh.");
+            localStorage.clear();
         }
-    } catch(e) { console.error("Save error."); }
+    } catch(e) { 
+        console.error("Critical execution save block. Wiping records."); 
+        localStorage.clear();
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     refreshUI();
     initStockMarketHTML();
     initStockMarketLoop();
+    initAdvancedCanvasEngine();
+    saveProfile();
 });
 
 function switchScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    const targetedScreen = document.getElementById(id);
+    if (targetedScreen) targetedScreen.classList.add('active');
     saveProfile();
     refreshUI();
     if (id === 'stock-screen') updateStockMarketVisuals();
+    if (id === 'local-screen') updateLocalStorefrontVisuals();
 }
 
 function toggleTheme() { document.body.classList.toggle('light-theme'); }
@@ -48,36 +67,52 @@ function refreshUI() {
     if (document.getElementById('drop-count')) document.getElementById('drop-count').innerText = state.dropshipping.assets.length;
     if (document.getElementById('local-type-display')) document.getElementById('local-type-display').innerText = state.local.style === 'food' ? '🌮 Food Truck' : '⚡ Electronics';
     if (document.getElementById('local-inv')) document.getElementById('local-inv').innerText = state.local.stock;
-    if (document.getElementById('local-traffic-display')) document.getElementById('local-traffic-display').innerText = state.local.footTraffic + (state.upgrades.lights * 3);
+    
+    let dynamicTraffic = state.local.footTraffic + (state.upgrades.lights * 3) + (state.upgrades.storePromoters * 8);
+    if (document.getElementById('local-traffic-display')) {
+        document.getElementById('local-traffic-display').innerText = Math.round(dynamicTraffic * state.local.marketingMultiplier);
+    }
+    
     if (document.getElementById('farm-seeds-w')) document.getElementById('farm-seeds-w').innerText = state.farm.wheatSeeds;
     if (document.getElementById('farm-seeds-t')) document.getElementById('farm-seeds-t').innerText = state.farm.tomatoSeeds;
     if (document.getElementById('inv-wheat')) document.getElementById('inv-wheat').innerText = state.farm.rawWheat;
     if (document.getElementById('inv-tomato')) document.getElementById('inv-tomato').innerText = state.farm.rawTomato;
-    
-    // Processed products rendering update
     if (document.getElementById('inv-bread')) document.getElementById('inv-bread').innerText = state.farm.preparedBread;
     if (document.getElementById('inv-pasta')) document.getElementById('inv-pasta').innerText = state.farm.preparedPasta;
 
-    document.getElementById('up-copy-lvl').innerText = state.upgrades.copywriting;
-    document.getElementById('up-copy-cost').innerText = state.upgrades.copywriting >= 10 ? 'MAX' : (state.upgrades.copywriting + 1) * 200;
-    document.getElementById('up-pixel-lvl').innerText = state.upgrades.pixel;
-    document.getElementById('up-pixel-cost').innerText = state.upgrades.pixel >= 10 ? 'MAX' : (state.upgrades.pixel + 1) * 350;
-    document.getElementById('up-lights-lvl').innerText = state.upgrades.lights;
-    document.getElementById('up-lights-cost').innerText = state.upgrades.lights >= 10 ? 'MAX' : (state.upgrades.lights + 1) * 250;
-    document.getElementById('up-hydro-lvl').innerText = state.upgrades.hydroponics;
-    document.getElementById('up-hydro-cost').innerText = state.upgrades.hydroponics >= 10 ? 'MAX' : (state.upgrades.hydroponics + 1) * 300;
+    updateUpgradeElement('up-copy-lvl', 'up-copy-cost', state.upgrades.copywriting, 200);
+    updateUpgradeElement('up-pixel-lvl', 'up-pixel-cost', state.upgrades.pixel, 350);
+    updateUpgradeElement('up-lights-lvl', 'up-lights-cost', state.upgrades.lights, 250);
+    updateUpgradeElement('up-hydro-lvl', 'up-hydro-cost', state.upgrades.hydroponics, 300);
+    updateUpgradeElement('up-promoters-lvl', 'up-promoters-cost', state.upgrades.storePromoters || 0, 400);
+}
+
+function updateUpgradeElement(lvlId, costId, currentLvl, baseCost) {
+    const lvlEl = document.getElementById(lvlId);
+    const costEl = document.getElementById(costId);
+    if (lvlEl) lvlEl.innerText = currentLvl;
+    if (costEl) costEl.innerText = currentLvl >= 10 ? 'MAX' : (currentLvl + 1) * baseCost;
 }
 
 function buyUpgrade(type) {
-    if (type === 'hydroponic') type = 'hydroponics';
+    if (type === 'hydropenic' || type === 'hydroponic') type = 'hydroponics';
+    if (state.upgrades[type] === undefined) state.upgrades[type] = 0;
+    
     let currentLvl = state.upgrades[type];
     if (currentLvl >= 10) return alert("Max Level 10 reached!");
-    let cost = type === 'copywriting' ? (currentLvl + 1) * 200 : type === 'pixel' ? (currentLvl + 1) * 350 : type === 'lights' ? (currentLvl + 1) * 250 : (currentLvl + 1) * 300;
+    
+    let baseCosts = { copywriting: 200, pixel: 350, lights: 250, hydroponics: 300, storePromoters: 400 };
+    let cost = (currentLvl + 1) * (baseCosts[type] || 200);
+    
     if (state.cash >= cost) {
         state.cash = parseFloat((state.cash - cost).toFixed(2));
         state.upgrades[type]++;
-        saveProfile(); refreshUI();
-    } else { alert("Not enough money!"); }
+        saveProfile(); 
+        refreshUI();
+        if (document.getElementById('local-screen').classList.contains('active')) updateLocalStorefrontVisuals();
+    } else { 
+        alert("Not enough money!"); 
+    }
 }
 
 function buySeeds(type) {
@@ -87,34 +122,82 @@ function buySeeds(type) {
     saveProfile(); refreshUI();
 }
 
-const board = document.getElementById('productCanvas');
-let drawEngine = board ? board.getContext('2d') : null;
-let painting = false, lastDrawX = 0, lastDrawY = 0, currentPenColor = '#000000';
+let drawEngine = null;
+let painting = false;
+let lastDrawX = 0, lastDrawY = 0;
+let currentPenColor = '#000000';
+let currentBrushSize = 4;
 
-if (board && drawEngine) {
-    board.width = board.offsetWidth || 340; board.height = board.offsetHeight || 150;
-    board.addEventListener('mousedown', (e) => { 
-        painting = true; const d = board.getBoundingClientRect();
-        lastDrawX = (e.clientX - d.left) * (board.width / d.width);
-        lastDrawY = (e.clientY - d.top) * (board.height / d.height);
-    });
-    board.addEventListener('mouseup', () => painting = false);
-    board.addEventListener('mousemove', (e) => {
+function initAdvancedCanvasEngine() {
+    const board = document.getElementById('productCanvas');
+    if (!board) return;
+    drawEngine = board.getContext('2d');
+    
+    board.width = board.offsetWidth || 340; 
+    board.height = board.offsetHeight || 150;
+    
+    function getCanvasCoordinates(e) {
+        const bounds = board.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - bounds.left) * (board.width / bounds.width),
+            y: (clientY - bounds.top) * (board.height / bounds.height)
+        };
+    }
+
+    function startDrawing(e) {
+        painting = true;
+        const pos = getCanvasCoordinates(e);
+        lastDrawX = pos.x;
+        lastDrawY = pos.y;
+        if(e.cancelable) e.preventDefault();
+    }
+
+    function draw(e) {
         if (!painting || !drawEngine) return;
-        drawEngine.lineWidth = 4; drawEngine.lineCap = 'round'; drawEngine.lineJoin = 'round'; drawEngine.strokeStyle = currentPenColor;
-        const d = board.getBoundingClientRect();
-        const cx = (e.clientX - d.left) * (board.width / d.width);
-        const cy = (e.clientY - d.top) * (board.height / d.height);
-        drawEngine.beginPath(); drawEngine.moveTo(lastDrawX, lastDrawY); drawEngine.lineTo(cx, cy); drawEngine.stroke();
-        lastDrawX = cx; lastDrawY = cy;
-    });
+        const pos = getCanvasCoordinates(e);
+        
+        drawEngine.beginPath();
+        drawEngine.moveTo(lastDrawX, lastDrawY);
+        drawEngine.lineTo(pos.x, pos.y);
+        drawEngine.strokeStyle = currentPenColor;
+        drawEngine.lineWidth = currentBrushSize;
+        drawEngine.lineCap = 'round';
+        drawEngine.lineJoin = 'round';
+        drawEngine.stroke();
+        
+        lastDrawX = pos.x;
+        lastDrawY = pos.y;
+        if(e.cancelable) e.preventDefault();
+    }
+
+    function stopDrawing() {
+        painting = false;
+    }
+
+    board.addEventListener('mousedown', startDrawing);
+    board.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', stopDrawing);
+    board.addEventListener('mouseleave', stopDrawing);
+
+    board.addEventListener('touchstart', startDrawing, { passive: false });
+    board.addEventListener('touchmove', draw, { passive: false });
+    board.addEventListener('touchend', stopDrawing);
 }
+/* ==========================================================================
+   DROPSHIPPING & MOCKUP CANVAS TOOLS
+   ========================================================================== */
 function setCanvasColor(hex) { currentPenColor = hex; }
-function clearCanvas() { if(drawEngine) drawEngine.clearRect(0, 0, board.width, board.height); }
+function setBrushSize(size) { currentBrushSize = parseInt(size) || 4; }
+function clearCanvas() { 
+    const board = document.getElementById('productCanvas');
+    if(drawEngine && board) drawEngine.clearRect(0, 0, board.width, board.height); 
+}
 
 function saveProduct() {
     const tBox = document.getElementById('drop-name'), cBox = document.getElementById('drop-price'), dBox = document.getElementById('drop-desc');
-    if(!tBox.value || !cBox.value || !dBox.value) return alert("Fill fields!");
+    if(!tBox || !cBox || !dBox || !tBox.value || !cBox.value || !dBox.value) return alert("Fill fields!");
     const price = parseFloat(cBox.value), pitch = dBox.value.toLowerCase();
     let score = 25;
     if (pitch.length > 25) score += 20; if (pitch.length > 70) score += 20;
@@ -138,20 +221,84 @@ setInterval(() => {
     }
 }, 3800);
 
-function changeNiche() { state.local.style = document.getElementById('local-niche-select').value; saveProfile(); refreshUI(); }
-function buyInventory() { if(state.cash >= 100) { state.cash = parseFloat((state.cash - 100).toFixed(2)); state.local.stock += 10; saveProfile(); refreshUI(); } }
+/* ==========================================================================
+   1,000x MORE FUN ACTIVE MANAGEMENT STOREFRONT OPERATIONS SYSTEM
+   ========================================================================== */
+function changeNiche() {
+    state.local.style = document.getElementById('local-niche-select').value;
+    saveProfile();
+    refreshUI();
+    updateLocalStorefrontVisuals();
+}
+
+function buyInventory() {
+    if(state.cash >= 100) {
+        state.cash = parseFloat((state.cash - 100).toFixed(2));
+        state.local.stock += 10;
+        saveProfile();
+        refreshUI();
+    } else {
+        alert("Not enough funds to purchase inventory bulk package.");
+    }
+}
+
+function distributeFlyers() {
+    state.local.marketingMultiplier = parseFloat((state.local.marketingMultiplier + 0.15).toFixed(2));
+    if (state.local.marketingMultiplier > 4.0) state.local.marketingMultiplier = 4.0;
+    state.local.loyaltyRating = Math.min(100, state.local.loyaltyRating + 1);
+
+    const feed = document.getElementById('local-feed');
+    if (feed) {
+        feed.innerHTML = `<div style="color:#60a5fa;">📣 Handed out flyers! Local Traffic speed Multiplier at ${state.local.marketingMultiplier}x!</div>` + feed.innerHTML;
+    }
+    updateLocalStorefrontVisuals();
+    refreshUI();
+}
+
+function updateLocalStorefrontVisuals() {
+    const multEl = document.getElementById('store-multiplier-badge');
+    if (multEl) multEl.innerText = state.local.marketingMultiplier.toFixed(2) + "x";
+
+    const loyaltyEl = document.getElementById('store-loyalty-badge');
+    if (loyaltyEl) loyaltyEl.innerText = (state.local.loyaltyRating || 50) + "%";
+
+    const salesEl = document.getElementById('store-sales-count');
+    if (salesEl) salesEl.innerText = state.local.totalSalesCount || 0;
+}
+
+setInterval(() => {
+    if (state.local.marketingMultiplier > 1.0) {
+        state.local.marketingMultiplier = parseFloat((state.local.marketingMultiplier - 0.05).toFixed(2));
+        if (state.local.marketingMultiplier < 1.0) state.local.marketingMultiplier = 1.0;
+        updateLocalStorefrontVisuals();
+        refreshUI();
+    }
+}, 2000);
 
 setInterval(() => {
     if (document.getElementById('local-screen').classList.contains('active') && state.local.stock > 0) {
-        if (Math.random() * 100 < ((state.local.footTraffic + (state.upgrades.lights * 3)) * 3.5)) {
-            state.local.stock--; const earn = state.local.style === 'food' ? 25.00 : 75.00;
+        let baseTraffic = state.local.footTraffic + (state.upgrades.lights * 3) + ((state.upgrades.storePromoters || 0) * 8);
+        let finalTraffic = baseTraffic * state.local.marketingMultiplier;
+        let saleChance = finalTraffic * (3.5 * ((state.local.loyaltyRating || 50) / 50));
+        
+        if (Math.random() * 100 < saleChance) {
+            state.local.stock--;
+            state.local.totalSalesCount = (state.local.totalSalesCount || 0) + 1;
+            if(Math.random() < 0.25) state.local.loyaltyRating = Math.min(100, (state.local.loyaltyRating || 50) + 2);
+            const earn = state.local.style === 'food' ? 25.00 : 75.00;
             state.cash = parseFloat((state.cash + earn).toFixed(2));
-            document.getElementById('local-feed').innerHTML = `<div style="color:#4caf50;">✔ Product Sold (+$${earn})</div>` + document.getElementById('local-feed').innerHTML;
+            
+            document.getElementById('local-feed').innerHTML = `<div style="color:#4caf50;">✔ Product Sold at Storefront (+$${earn}) [Loyalty: ${state.local.loyaltyRating}%]</div>` + document.getElementById('local-feed').innerHTML;
+            updateLocalStorefrontVisuals();
             refreshUI();
+            saveProfile();
         }
     }
 }, 3000);
 
+/* ==========================================================================
+   AUTOMATED FARMING SYSTEM SECTOR
+   ========================================================================== */
 function renderFields() {
     const grid = document.getElementById('farmPlotsContainer'); if (!grid) return; grid.innerHTML = '';
     farmPlots.forEach((plot, idx) => {
@@ -190,128 +337,41 @@ window.harvestCrop = function(idx) {
     saveProfile(); renderFields(); refreshUI();
 };
 
-// Processing Kitchen Logic
 window.processFood = function(type) {
     if (type === 'bread') {
         if (state.farm.rawWheat >= 3) {
-            state.farm.rawWheat -= 3;
-            state.farm.preparedBread += 1;
+            state.farm.rawWheat -= 3; state.farm.preparedBread += 1;
             logFarmMessage("🍞 Baked 1x Fresh Bread!", "#38bdf8");
-        } else {
-            alert("Not enough Raw Wheat! You need 3 units.");
-        }
+        } else { alert("Not enough Raw Wheat! You need 3 units."); }
     } else if (type === 'pasta') {
         if (state.farm.rawWheat >= 2 && state.farm.rawTomato >= 2) {
-            state.farm.rawWheat -= 2;
-            state.farm.rawTomato -= 2;
-            state.farm.preparedPasta += 1;
+            state.farm.rawWheat -= 2; state.farm.rawTomato -= 2; state.farm.preparedPasta += 1;
             logFarmMessage("🍝 Cooked 1x Tomato Pasta!", "#38bdf8");
-        } else {
-            alert("Not enough ingredients! You need 2 Wheat and 2 Tomatoes.");
-        }
+        } else { alert("Not enough ingredients! You need 2 Wheat and 2 Tomatoes."); }
     }
-    saveProfile();
-    refreshUI();
+    saveProfile(); refreshUI();
 };
 
 window.sellFood = function(type) {
     if (type === 'bread') {
         if (state.farm.preparedBread > 0) {
-            state.farm.preparedBread -= 1;
-            state.cash = parseFloat((state.cash + 45.00).toFixed(2));
+            state.farm.preparedBread -= 1; state.cash = parseFloat((state.cash + 45.00).toFixed(2));
             logFarmMessage("💰 Sold 1x Fresh Bread for $45.00!", "#4caf50");
-        } else {
-            alert("You don't have any Bread to sell!");
-        }
+        } else { alert("You don't have any Bread to sell!"); }
     } else if (type === 'pasta') {
         if (state.farm.preparedPasta > 0) {
-            state.farm.preparedPasta -= 1;
-            state.cash = parseFloat((state.cash + 90.00).toFixed(2));
+            state.farm.preparedPasta -= 1; state.cash = parseFloat((state.cash + 90.00).toFixed(2));
             logFarmMessage("💰 Sold 1x Tomato Pasta for $90.00!", "#4caf50");
-        } else {
-            alert("You don't have any Pasta to sell!");
-        }
+        } else { alert("You don't have any Pasta to sell!"); }
     }
-    saveProfile();
-    refreshUI();
+    saveProfile(); refreshUI();
 };
 
 function logFarmMessage(msg, color = "#fff") {
     const feed = document.getElementById('farm-feed');
-    if (feed) {
-        feed.innerHTML = `<div style="color:${color};">[KITCHEN] ${msg}</div>` + feed.innerHTML;
-    }
+    if (feed) feed.innerHTML = `<div style="color:${color};">[KITCHEN] ${msg}</div>` + feed.innerHTML;
 }
 
-function initStockMarketHTML() {
-    const container = document.getElementById('stock-grid-container'); if (!container) return; container.innerHTML = '';
-    for (let name in state.stocks) {
-        let id = name.replace(' ', '-');
-        let card = document.createElement('div'); card.className = 'upgrade-item'; card.id = `stock-card-${id}`; card.style.marginBottom = '15px';
-        card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div><h3 style="margin:0;" id="stock-name-${id}">${name}</h3><small id="stock-held-${id}">Owned: 0</small></div>
-                <div style="text-align:right;"><div style="font-size:1.3rem; font-weight:bold;" id="stock-price-${id}">$0</div><small id="stock-trend-${id}">📈 WANTED</small></div>
-            </div>
-            <div style="height:40px; background:rgba(0,0,0,0.2); border-radius:4px; margin-bottom:10px;">
-                <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%; height:100%;"><polyline fill="none" id="stock-polyline-${id}" stroke="#10b981" stroke-width="2" points="0,20 100,20"/></svg>
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <div><input type="number" id="amt-buy-${id}" placeholder="Amount ($)" style="margin-bottom:5px; padding:5px; width:80%;"><button class="btn" style="min-width:100%; margin:0; padding:6px; font-size:0.85rem;" onclick="tradeAsset('${name}', 'buy')">Buy</button></div>
-                <div><input type="number" id="amt-sell-${id}" placeholder="Units" style="margin-bottom:5px; padding:5px; width:80%;"><button class="btn" style="min-width:100%; margin:0; padding:6px; font-size:0.85rem; background:#ef4444;" onclick="tradeAsset('${name}', 'sell')">Sell</button></div>
-            </div>`;
-        container.appendChild(card);
-    }
-}
-
-function initStockMarketLoop() {
-    setInterval(() => {
-        let alerts = [];
-        for (let name in state.stocks) {
-            let asset = state.stocks[name]; let change = (Math.random() - 0.48) * 2 * asset.baseVolatility;
-            if (name === 'One Piece') { if (Math.random() < 0.01) change = 8.0; else change = (Math.random() - 0.65) * asset.baseVolatility; }
-            asset.currentPrice = Math.max(0.50, asset.currentPrice * (1 + change)); asset.priceHistory.push(asset.currentPrice);
-            if (asset.priceHistory.length > 15) asset.priceHistory.shift();
-            if (change > 0.15 && asset.held > 0) alerts.push(`🔥 "${name}" is highly WANTED! Sell now!`);
-        }
-        const displayAlert = document.getElementById('market-notification');
-        if (displayAlert) {
-            if(alerts.length > 0 && document.getElementById('stock-screen').classList.contains('active')) {
-                displayAlert.innerText = alerts.join(" | "); displayAlert.style.display = 'block';
-            } else { displayAlert.style.display = 'none'; }
-        }
-        if (document.getElementById('stock-screen').classList.contains('active')) updateStockMarketVisuals();
-    }, 6000);
-}
-
-function updateStockMarketVisuals() {
-    for (let name in state.stocks) {
-        let asset = state.stocks[name], id = name.replace(' ', '-'), hist = asset.priceHistory;
-        let trend = hist.length > 1 ? hist[hist.length - 1] >= hist[hist.length - 2] : true, color = trend ? '#10b981' : '#ef4444';
-        if (document.getElementById(`stock-card-${id}`)) document.getElementById(`stock-card-${id}`).style.borderColor = color;
-        if (document.getElementById(`stock-name-${id}`)) document.getElementById(`stock-name-${id}`).style.color = color;
-        if (document.getElementById(`stock-held-${id}`)) document.getElementById(`stock-held-${id}`).innerText = `Owned: ${asset.held.toFixed(2)}`;
-        if (document.getElementById(`stock-price-${id}`)) { document.getElementById(`stock-price-${id}`).innerText = `$${asset.currentPrice.toFixed(2)}`; document.getElementById(`stock-price-${id}`).style.color = color; }
-        if (document.getElementById(`stock-trend-${id}`)) { document.getElementById(`stock-trend-${id}`).innerText = trend ? '📈 WANTED' : '📉 UNWANTED'; document.getElementById(`stock-trend-${id}`).style.color = color; }
-        if (document.getElementById(`stock-polyline-${id}`)) {
-            let min = Math.min(...hist), max = Math.max(...hist), r = max - min === 0 ? 1 : max - min;
-            let pts = hist.map((v, i) => `${(i / (hist.length - 1)) * 100},${40 - (((v - min) / r) * 32 + 4)}`).join(' ');
-            document.getElementById(`stock-polyline-${id}`).setAttribute('points', pts); document.getElementById(`stock-polyline-${id}`).setAttribute('stroke', color);
-        }
-    }
-}
-
-window.tradeAsset = function(name, action) {
-    let asset = state.stocks[name], id = name.replace(' ', '-');
-    if (action === 'buy') {
-        let val = parseFloat(document.getElementById(`amt-buy-${id}`).value);
-        if (isNaN(val) || val <= 0 || state.cash < val) return alert("Invalid entry or funds!");
-        state.cash = parseFloat((state.cash - val).toFixed(2)); asset.held += (val / asset.currentPrice);
-    } else {
-        let units = parseFloat(document.getElementById(`amt-sell-${id}`).value);
-        if (isNaN(units) || units <= 0 || asset.held < units) return alert("Invalid units!");
-        state.cash = parseFloat((state.cash + (units * asset.currentPrice)).toFixed(2)); asset.held -= units;
-    }
-    document.getElementById(`amt-buy-${id}`).value = ''; document.getElementById(`amt-sell-${id}`).value = '';
-    saveProfile(); refreshUI(); updateStockMarketVisuals();
-};
+/* ==========================================================================
+   HIGH FREQUENCY ASSET EXCHANGE MECHANICS (STOCK MARKET)
+   ========================================================================== */
