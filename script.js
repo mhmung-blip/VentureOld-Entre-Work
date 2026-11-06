@@ -42,9 +42,35 @@ document.addEventListener('DOMContentLoaded', () => {
 function switchScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    
+    // FIX: Dynamically adjust canvas bounds once its parent container is active and visible
+    if (id === 'dropshipping-screen' && board) {
+        board.width = board.clientWidth;
+        board.height = 180;
+        if(drawEngine) {
+            drawEngine.lineCap = 'round';
+            drawEngine.lineJoin = 'round';
+            drawEngine.lineWidth = 4;
+        }
+    }
+
     saveProfile();
     refreshUI();
     if (id === 'stock-screen') renderStockMarket();
+}
+
+// Update the mouse listener block to accurately track coordinates on the resized canvas
+if (board && drawEngine) {
+    board.addEventListener('mousedown', (e) => { 
+        painting = true; 
+        const dimensions = board.getBoundingClientRect();
+        // Calculate exact point matrix matching internal canvas pixels
+        lastDrawX = (e.clientX - dimensions.left) * (board.width / dimensions.width);
+        lastDrawY = (e.clientY - dimensions.top) * (board.height / dimensions.height);
+    });
+    board.addEventListener('mouseup', () => painting = false);
+    board.addEventListener('mouseleave', () => painting = false);
+    board.addEventListener('mousemove', processStroke);
 }
 
 function toggleTheme() { document.body.classList.toggle('light-theme'); }
